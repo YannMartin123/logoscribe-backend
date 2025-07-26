@@ -2,9 +2,9 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
-require('dotenv').config(); // ← charge les variables .env
+require('dotenv').config();
 
-const { GoogleGenerativeAI } = require('@google/generative-ai'); // ← Gemini
+const {TextServiceClient} = require('@google-ai/generativelanguage').v1beta;
 
 const app = express();
 app.use(cors());
@@ -14,19 +14,19 @@ const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
     origin: '*',
-    methods: ['GET', 'POST']
-  }
+    methods: ['GET', 'POST'],
+  },
 });
 
-// ✅ Initialisation Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Init client Gemini
+const client = new TextServiceClient();
 
-// ✅ Route test
+// Route test
 app.get('/', (req, res) => {
-  res.send('LogoScribe backend is running with Gemini!');
+  res.send('LogoScribe backend is running!');
 });
 
-// ✅ Route IA de correction
+// Route IA correction avec Gemini
 app.post('/api/correct', async (req, res) => {
   const { text } = req.body;
 
@@ -35,22 +35,25 @@ app.post('/api/correct', async (req, res) => {
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    // Requête à Gemini modèle text-bison-001
+    const [response] = await client.generateText({
+      model: 'models/text-bison-001',
+      prompt: {
+        text: `Corrige ce texte en français : ${text}`,
+      },
+      temperature: 0.7,
+      maxTokens: 1024,
+    });
 
-    const prompt = `Corrige le texte suivant en français : orthographe, grammaire, ponctuation, style. Ne modifie pas le sens. Retourne uniquement le texte corrigé.\n\nTexte : ${text}`;
-
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const corrected = response.text();
-
+    const corrected = response.candidates[0].output;
     res.json({ corrected });
   } catch (err) {
-    console.error('❌ Erreur Gemini:', err.message);
-    res.status(500).json({ error: 'Erreur lors de la correction du texte avec Gemini.' });
+    console.error('❌ Erreur Gemini:', err);
+    res.status(500).json({ error: 'Erreur lors de la correction du texte.' });
   }
 });
 
-// 🎤 WebSocket transcription
+// WebSocket transcription
 io.on('connection', (socket) => {
   console.log('✅ Nouvelle connexion :', socket.id);
 
@@ -66,5 +69,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
-  console.log(`🚀 Serveur LogoScribe (Gemini) démarré sur port ${PORT}`);
+  console.log(`🚀 Serveur LogoScribe démarré sur port ${PORT}`);
 });
