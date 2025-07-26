@@ -2,12 +2,13 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
-const axios = require('axios');
-require('dotenv').config(); // ← charge le fichier .env
+require('dotenv').config(); // ← charge les variables .env
+
+const { GoogleGenerativeAI } = require('@google/generative-ai'); // ← Gemini
 
 const app = express();
 app.use(cors());
-app.use(express.json()); // ← important pour lire req.body en JSON
+app.use(express.json());
 
 const server = http.createServer(app);
 const io = socketIo(server, {
@@ -17,9 +18,12 @@ const io = socketIo(server, {
   }
 });
 
+// ✅ Initialisation Gemini
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
 // ✅ Route test
 app.get('/', (req, res) => {
-  res.send('LogoScribe backend is running!');
+  res.send('LogoScribe backend is running with Gemini!');
 });
 
 // ✅ Route IA de correction
@@ -31,35 +35,18 @@ app.post('/api/correct', async (req, res) => {
   }
 
   try {
-    const response = await axios.post(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        model: 'gpt-4',
-        messages: [
-          {
-            role: 'system',
-            content: 'Tu es un assistant qui corrige le style, la grammaire et la ponctuation d’un texte en français. Ne modifie pas le sens. Retourne uniquement le texte corrigé.',
-          },
-          {
-            role: 'user',
-            content: text,
-          },
-        ],
-        temperature: 0.7,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
-    const corrected = response.data.choices[0].message.content;
+    const prompt = `Corrige le texte suivant en français : orthographe, grammaire, ponctuation, style. Ne modifie pas le sens. Retourne uniquement le texte corrigé.\n\nTexte : ${text}`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const corrected = response.text();
+
     res.json({ corrected });
   } catch (err) {
-    console.error('❌ Erreur API OpenAI:', err.response?.data || err.message);
-    res.status(500).json({ error: 'Erreur lors de la correction du texte.' });
+    console.error('❌ Erreur Gemini:', err.message);
+    res.status(500).json({ error: 'Erreur lors de la correction du texte avec Gemini.' });
   }
 });
 
@@ -79,5 +66,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
-  console.log(`🚀 Serveur LogoScribe démarré sur port ${PORT}`);
+  console.log(`🚀 Serveur LogoScribe (Gemini) démarré sur port ${PORT}`);
 });
