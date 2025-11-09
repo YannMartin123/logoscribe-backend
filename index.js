@@ -19,7 +19,9 @@ const io = socketIo(server, {
 });
 
 // Init client Gemini
-const client = new TextServiceClient();
+const client = new TextServiceClient({
+  apiKey: process.env.GEMINI_API_KEY,
+});
 
 // Route test
 app.get('/', (req, res) => {
