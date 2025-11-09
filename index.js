@@ -71,5 +71,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
-  console.log(`🚀 Serveur LogoScribe démarré sur port ${PORT}`);
+  console.log(`🚀 Serveur LogoScribe-Back démarré sur port ${PORT}`);
 });
